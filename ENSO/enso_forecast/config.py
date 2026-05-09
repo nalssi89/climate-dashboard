@@ -5,13 +5,14 @@ from pathlib import Path
 
 # --- Project paths ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+IS_VERCEL = bool(os.environ.get("VERCEL"))
 DATA_DIR = PROJECT_ROOT / "data"
-RAW_DIR = DATA_DIR / "raw"
+RAW_DIR = Path("/tmp/enso_raw") if IS_VERCEL else DATA_DIR / "raw"
 FORECASTS_DIR = DATA_DIR / "forecasts"
 OBSERVED_DIR = DATA_DIR / "observed"
 FIGURES_DIR = (
     Path("/tmp/enso_figures")
-    if os.environ.get("VERCEL")
+    if IS_VERCEL
     else PROJECT_ROOT / "figures"
 )
 
