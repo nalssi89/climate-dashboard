@@ -54,13 +54,12 @@ def fetch_oni_data() -> pd.DataFrame:
             # Get center month of season
             month = SEASON_TO_MONTH.get(season)
             if month:
-                # Handle year for DJF (December is previous year)
-                if season == 'DJF':
-                    # DJF 1950 means Dec 1949, Jan 1950, Feb 1950 -> center is Jan 1950
-                    pass  # Year is already correct for center month
+                # NOAA labels DJF by its December year; the centered
+                # January month belongs to the following calendar year.
+                center_year = year + 1 if season == 'DJF' else year
 
                 records.append({
-                    'year': year,
+                    'year': center_year,
                     'month': month,
                     'season': season,
                     'oni': anom,

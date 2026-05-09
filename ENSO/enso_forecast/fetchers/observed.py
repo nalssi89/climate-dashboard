@@ -135,10 +135,11 @@ def fetch_oni() -> pd.DataFrame:
         if center_month is None:
             continue
 
-        # NOAA labels each season with the year of its center month
-        # (e.g. DJF 1950 = Dec 1949-Feb 1950, centered on Jan 1950).
+        # NOAA's ONI table labels DJF with the December year, so its
+        # center month lands in January of the following calendar year.
+        center_year = year + 1 if season == "DJF" else year
         records.append({
-            "year": year,
+            "year": center_year,
             "month": center_month,
             "season": season,
             "oni": oni_value,
@@ -199,9 +200,10 @@ def fetch_roni() -> pd.DataFrame:
         if center_month is None:
             continue
 
-        # NOAA labels each season with the year of its center month.
+        # NOAA's RONI table follows the same DJF convention as ONI.
+        center_year = year + 1 if season == "DJF" else year
         records.append({
-            "year": year,
+            "year": center_year,
             "month": center_month,
             "season": season,
             "roni": roni_value,
