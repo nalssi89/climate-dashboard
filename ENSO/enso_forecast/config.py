@@ -9,7 +9,11 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 FORECASTS_DIR = DATA_DIR / "forecasts"
 OBSERVED_DIR = DATA_DIR / "observed"
-FIGURES_DIR = PROJECT_ROOT / "figures"
+FIGURES_DIR = (
+    Path("/tmp/enso_figures")
+    if os.environ.get("VERCEL")
+    else PROJECT_ROOT / "figures"
+)
 
 # Ensure directories exist
 for d in [RAW_DIR, FORECASTS_DIR, OBSERVED_DIR, FIGURES_DIR]:
