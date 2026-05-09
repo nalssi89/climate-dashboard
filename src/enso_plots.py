@@ -19,17 +19,81 @@ if str(_ENSO_ROOT) not in sys.path:
 from enso_forecast.normalize import load_all_forecasts, get_ensemble_means
 from enso_forecast.fetchers.observed import get_recent_observed
 from enso_forecast.config import OBSERVED_DIR
-from enso_forecast.visualize import (
-    _build_mega_df,
-    _get_forecast_only,
-    _weighted_quantile,
-    _target_month_to_date,
-    MEGA_COLORS,
-    MEGA_PLUME_DROP,
-)
-
 # Import theme helper from dashboard
 from src.dashboard import get_theme
+
+
+def _target_month_to_date(target_month: str) -> pd.Timestamp:
+    """Convert 'YYYY-MM' to a Timestamp (1st of month)."""
+    return pd.Timestamp(target_month + "-01")
+
+
+def _filter_cfs_forecast_months(cfs_df: pd.DataFrame) -> pd.DataFrame:
+    """Filter CFS data to true forecast months only."""
+    if cfs_df.empty:
+        return cfs_df
+
+    members = cfs_df[cfs_df["member_id"] != "mean"]
+    if members.empty:
+        return cfs_df
+
+    spread = members.groupby("target_month")["nino34_anom"].std().reset_index()
+    forecast_months = spread[spread["nino34_anom"] > 0.001]["target_month"].tolist()
+    return cfs_df[cfs_df["target_month"].isin(forecast_months)].copy() if forecast_months else cfs_df
+
+
+def _get_forecast_only(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter combined forecast data to only true forecast months."""
+    non_cfs = df[df["source"] != "CFS"]
+    cfs = df[df["source"] == "CFS"]
+    if cfs.empty:
+        return df
+    return pd.concat([non_cfs, _filter_cfs_forecast_months(cfs)], ignore_index=True)
+
+
+MEGA_PLUME_DROP = {
+    ("NMME", "NCEP-CFSv2"),
+    ("NMME", "NMME"),
+    ("C3S", "NCEP"),
+    ("C3S", "ECCC"),
+    ("NMME", "ECCC-CanESM5"),
+    ("NMME", "ECCC-GEM5.2-NEMO"),
+}
+
+MEGA_COLORS = {
+    "CFSv2": "#d62728",
+    "ECMWF": "#1f77b4",
+    "Meteo-France": "#2ca02c",
+    "DWD": "#ff7f0e",
+    "CMCC": "#9467bd",
+    "BOM": "#e377c2",
+    "CanSIPS-CanESM5": "#17becf",
+    "CanSIPS-GEM-NEMO": "#bcbd22",
+    "NCAR-CESM1": "#8c564b",
+    "NCAR-CCSM4": "#7f7f7f",
+    "NASA-GEOS-S2S-2": "#aec7e8",
+}
+
+
+def _build_mega_df(forecast_df: pd.DataFrame) -> pd.DataFrame:
+    """Build a deduplicated DataFrame for the mega plume."""
+    df = forecast_df.copy()
+    mask = df.apply(lambda r: (r["source"], r["model"]) not in MEGA_PLUME_DROP, axis=1)
+    deduped = df[mask].reset_index(drop=True)
+    n_dropped = len(df) - len(deduped)
+    if n_dropped > 0:
+        logger.info("Mega plume dedup: dropped %d rows", n_dropped)
+    return deduped
+
+
+def _weighted_quantile(values: np.ndarray, weights: np.ndarray, q: float) -> float:
+    """Compute a weighted quantile."""
+    idx = np.argsort(values)
+    sorted_vals = values[idx]
+    sorted_weights = weights[idx]
+    cum_weights = np.cumsum(sorted_weights)
+    cum_weights /= cum_weights[-1]
+    return float(np.interp(q, cum_weights, sorted_vals))
 
 
 # ---------------------------------------------------------------------------

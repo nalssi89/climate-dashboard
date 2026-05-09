@@ -17,8 +17,44 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.stats import linregress
-from statsmodels.nonparametric.smoothers_lowess import lowess
+
+try:
+    from scipy.stats import linregress
+except ImportError:
+    def linregress(x, y):
+        x_arr = np.asarray(x, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+        if len(x_arr) < 2:
+            return 0.0, float(y_arr[0]) if len(y_arr) else 0.0, np.nan, np.nan, np.nan
+        slope, intercept = np.polyfit(x_arr, y_arr, 1)
+        return slope, intercept, np.nan, np.nan, np.nan
+
+try:
+    from statsmodels.nonparametric.smoothers_lowess import lowess
+except ImportError:
+    def lowess(y, x, frac=0.1, return_sorted=True):
+        x_arr = np.asarray(x, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+        if len(y_arr) == 0:
+            return np.empty((0, 2)) if return_sorted else np.array([])
+
+        order = np.argsort(x_arr)
+        x_sorted = x_arr[order]
+        y_sorted = y_arr[order]
+        window = max(3, int(round(len(y_sorted) * frac)))
+        if window % 2 == 0:
+            window += 1
+        smoothed = (
+            pd.Series(y_sorted)
+            .rolling(window, center=True, min_periods=1)
+            .mean()
+            .to_numpy()
+        )
+        if return_sorted:
+            return np.column_stack([x_sorted, smoothed])
+        restored = np.empty_like(smoothed)
+        restored[order] = smoothed
+        return restored
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,42 @@ from dash import Dash, html, dcc, dash_table, callback, Output, Input, State, ca
 import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
 from pathlib import Path
-from sklearn.linear_model import LinearRegression
+
+try:
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import StandardScaler
+except ImportError:
+    class LinearRegression:
+        """Small NumPy fallback used by lean serverless deployments."""
+
+        def fit(self, X, y):
+            X = np.asarray(X, dtype=float)
+            y = np.asarray(y, dtype=float)
+            X_design = np.column_stack([np.ones(len(X)), X])
+            beta, *_ = np.linalg.lstsq(X_design, y, rcond=None)
+            self.intercept_ = beta[0]
+            self.coef_ = beta[1:]
+            return self
+
+        def predict(self, X):
+            X = np.asarray(X, dtype=float)
+            return self.intercept_ + X @ self.coef_
+
+    class StandardScaler:
+        """Small subset of sklearn.preprocessing.StandardScaler."""
+
+        def fit(self, X):
+            X = np.asarray(X, dtype=float)
+            self.mean_ = X.mean(axis=0)
+            self.scale_ = X.std(axis=0)
+            self.scale_[self.scale_ == 0] = 1.0
+            return self
+
+        def transform(self, X):
+            return (np.asarray(X, dtype=float) - self.mean_) / self.scale_
+
+        def fit_transform(self, X):
+            return self.fit(X).transform(X)
 
 from src.models_vs_obs import MONTHLY_PREINDUSTRIAL_OFFSETS
 
@@ -917,8 +952,6 @@ def create_annual_prediction_plot(df: pd.DataFrame, enso_df: pd.DataFrame = None
     uncertainty = 0.086  # Default uncertainty
 
     if len(train_df) > 10:
-        from sklearn.preprocessing import StandardScaler
-
         feature_cols = ['year', 'prior_year_anomaly', 'enso_obs', 'enso_future', 'trailing_anomaly', 'ytd_anomaly']
         X = train_df[feature_cols].values
         y = train_df['annual_anomaly'].values
@@ -1100,7 +1133,6 @@ def calculate_projection_for_date(df: pd.DataFrame, target_date: pd.Timestamp, e
 
     Returns dict with prediction, uncertainty, ytd_anomaly, and the date.
     """
-    from sklearn.preprocessing import StandardScaler
     from pathlib import Path
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -1602,8 +1634,6 @@ def create_statistics_cards(df: pd.DataFrame) -> dict:
             ]
 
             if len(train_df) > 10 and current_trailing_30d is not None:
-                from sklearn.preprocessing import StandardScaler
-
                 X = train_df[['year', 'prior_year_anomaly', 'enso_obs', 'enso_future', 'trailing_anomaly', 'ytd_anomaly']].values
                 y = train_df['annual_anomaly'].values
 

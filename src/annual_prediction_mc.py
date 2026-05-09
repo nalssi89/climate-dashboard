@@ -33,7 +33,7 @@ def load_enso_future_members(year: int, current_month: int) -> pd.DataFrame:
     sys.path.insert(0, str(DASHBOARD))
     sys.path.insert(0, str(DASHBOARD / "ENSO"))
     from enso_forecast.normalize import load_all_forecasts
-    from enso_forecast.visualize import _build_mega_df, _get_forecast_only
+    from src.enso_plots import _build_mega_df, _get_forecast_only
 
     forecast_df = load_all_forecasts(sources=SOURCES)
     mega = _build_mega_df(_get_forecast_only(forecast_df))
