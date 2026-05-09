@@ -62,3 +62,4 @@ dist/
 build/
 *.egg-info/
 CLAUDE_CONTEXT.md
+.vercel
