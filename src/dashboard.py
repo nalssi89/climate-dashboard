@@ -1954,7 +1954,8 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     # If not, generate them
     import os
     ridgeline_path = assets_dir / 'ridgeline_dark.png'
-    should_generate = not ridgeline_path.exists()
+    is_vercel = bool(os.environ.get("VERCEL"))
+    should_generate = False if is_vercel else not ridgeline_path.exists()
 
     if not should_generate:
         # Check age of existing images
@@ -1963,10 +1964,11 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
 
     # Update projection history with any new days (ERA5 data may be more
     # current than the last pipeline run that committed the history CSV)
-    try:
-        load_and_update_projection_history(df)
-    except Exception as e:
-        logger.warning(f"Could not update projection history: {e}")
+    if not is_vercel:
+        try:
+            load_and_update_projection_history(df)
+        except Exception as e:
+            logger.warning(f"Could not update projection history: {e}")
 
     if should_generate:
         logger.info("Generating static plot images...")

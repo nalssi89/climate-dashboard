@@ -1,0 +1,11 @@
+.git
+.omx
+.openchrome
+.vercel
+venv
+__pycache__
+.pytest_cache
+*.pyc
+data/era5/*.nc
+data/era5/*.grib
+data/era5/*.idx

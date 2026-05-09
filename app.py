@@ -6,6 +6,7 @@ Usage: gunicorn app:server
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from config import DATA_SOURCES, DATA_DIR
-from src.scraper import load_or_fetch_data
+from src.scraper import load_or_fetch_data, parse_era5_data
 from src.dashboard import create_dashboard
 from src.enso import create_combined_enso_dataset
 
@@ -32,14 +33,21 @@ def initialize_data():
     # Ensure data directory exists
     DATA_DIR.mkdir(exist_ok=True)
 
-    # Load ERA5 data
+    # Load ERA5 data. On Vercel, prefer the bundled cache at cold start:
+    # serverless deployments should not depend on writing refreshed data into
+    # the read-only deployment bundle before the first page can render.
     source = DATA_SOURCES["era5_global"]
-    df = load_or_fetch_data(source["url"], source["local_file"])
+    if os.environ.get("VERCEL") and source["local_file"].exists():
+        df = parse_era5_data(source["local_file"])
+    else:
+        df = load_or_fetch_data(source["url"], source["local_file"])
 
-    # Load ENSO data
+    # Load ENSO data. Vercel deployments use the committed ENSO forecast files
+    # directly from the dashboard and should not perform network writes during
+    # cold start.
     try:
         enso_file = DATA_DIR / "enso_combined.csv"
-        if not enso_file.exists():
+        if not os.environ.get("VERCEL") and not enso_file.exists():
             create_combined_enso_dataset(enso_file)
     except Exception as e:
         logger.warning(f"Could not load ENSO data: {e}")
