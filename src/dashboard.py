@@ -1987,7 +1987,7 @@ def create_dashboard(df: pd.DataFrame) -> Dash:
     is_vercel = bool(os.environ.get("VERCEL"))
     should_generate = False if is_vercel else not ridgeline_path.exists()
 
-    if not should_generate:
+    if not is_vercel and not should_generate:
         # Check age of existing images
         age = datetime.now().timestamp() - os.path.getmtime(ridgeline_path)
         should_generate = age > 3600  # Regenerate if older than 1 hour
