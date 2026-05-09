@@ -2,10 +2,17 @@ name: Update Climate Data
 
 on:
   schedule:
-    # Run daily at 6 AM UTC (same as Render cron)
-    - cron: '0 6 * * *'
+    # Run daily at 6 AM KST (21:00 UTC on the previous day)
+    - cron: '0 21 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-climate-data
+  cancel-in-progress: false
 
 jobs:
   update:
@@ -61,6 +68,12 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -A
-          git commit -m "Daily data update $(date -u +'%Y-%m-%d')"
+          git commit -m "Refresh climate data for scheduled dashboard updates" \
+            -m "Constraint: Runs unattended from GitHub Actions at 06:00 KST." \
+            -m "Confidence: medium" \
+            -m "Scope-risk: narrow" \
+            -m "Directive: Keep generated data files committed so Vercel can serve the latest bundle after push." \
+            -m "Tested: GitHub Actions completed the data update command before this commit." \
+            -m "Not-tested: Source availability may vary by upstream provider on each run."
           git pull --rebase
           git push
