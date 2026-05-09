@@ -17,6 +17,7 @@ data/*.csv
 !data/projection_history_*.csv
 !data/enso_forecast_updates.csv
 !data/last_enso_forecast_snapshot.csv
+!data/last_iri_snapshot.csv
 
 # IDE
 .idea/

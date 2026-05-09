@@ -2,7 +2,7 @@ name: Update Climate Data
 
 on:
   schedule:
-    # Run daily at 6 AM KST (21:00 UTC on the previous day)
+    # Sync upstream data daily at 6 AM KST (21:00 UTC on the previous day)
     - cron: '0 21 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub UI
@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,49 +33,49 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install lightweight dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-vercel.txt
 
-      - name: Configure CDS API credentials
-        env:
-          CDS_API_KEY: ${{ secrets.CDS_KEY }}
-          CDS_API_URL: ${{ secrets.CDS_URL }}
+      - name: Sync upstream committed data artifacts
         run: |
-          if [ -z "$CDS_API_KEY" ] || [ -z "$CDS_API_URL" ]; then
-            echo "CDS secrets are not configured; CDS-only data refreshes will be skipped or use cached data."
-            exit 0
-          fi
-          mkdir -p ~/.config/cdsapi
-          cat > ~/.cdsapirc << EOF
-          url: $CDS_API_URL
-          key: $CDS_API_KEY
-          EOF
+          git remote add upstream https://github.com/hausfath/climate-dashboard.git || git remote set-url upstream https://github.com/hausfath/climate-dashboard.git
+          git fetch upstream main --prune
 
-      - name: Update data and generate images
-        env:
-          CDS_API_KEY: ${{ secrets.CDS_KEY }}
-          CDS_API_URL: ${{ secrets.CDS_URL }}
-        run: |
-          python run.py update --force
+          git rm -r --ignore-unmatch \
+            assets/images \
+            data/cmip \
+            ENSO/data/observed \
+            ENSO/data/forecasts
 
-      - name: Update ERA5 spatial data (current month)
-        timeout-minutes: 20
-        env:
-          CDS_API_KEY: ${{ secrets.CDS_KEY }}
-          CDS_API_URL: ${{ secrets.CDS_URL }}
+          git rm --ignore-unmatch \
+            data/enso_forecast_updates.csv \
+            data/last_enso_forecast_snapshot.csv \
+            data/last_iri_snapshot.csv \
+            data/projection_history_2026.csv \
+            data/era5/precomputed/monthly_stats.csv
+
+          git checkout upstream/main -- \
+            assets/images \
+            data/cmip \
+            data/enso_forecast_updates.csv \
+            data/last_enso_forecast_snapshot.csv \
+            data/last_iri_snapshot.csv \
+            data/projection_history_2026.csv \
+            data/era5/precomputed/monthly_stats.csv \
+            ENSO/data/observed \
+            ENSO/data/forecasts
+
+      - name: Refresh lightweight ERA5 daily cache
         run: |
-          if [ -z "$CDS_API_KEY" ] || [ -z "$CDS_API_URL" ]; then
-            echo "Skipping ERA5 spatial data update because CDS secrets are not configured."
-            exit 0
-          fi
-          python -c "
-          from src.precompute_monthly_stats import download_current_month_mtd, precompute_current_month
-          download_current_month_mtd(force=True)
-          precompute_current_month()
-          "
-        continue-on-error: true   # Don't fail the whole workflow if CDS is slow/unavailable
+          python - <<'PY'
+          from config import DATA_SOURCES
+          from src.scraper import fetch_era5_data
+
+          source = DATA_SOURCES["era5_global"]
+          fetch_era5_data(source["url"], source["local_file"])
+          PY
 
       - name: Stage generated deployment data
         id: git-check
@@ -84,6 +86,7 @@ jobs:
             data/projection_history_*.csv \
             data/enso_forecast_updates.csv \
             data/last_enso_forecast_snapshot.csv \
+            data/last_iri_snapshot.csv \
             ENSO/data/observed \
             ENSO/data/forecasts
           if git diff --cached --quiet; then
@@ -98,11 +101,11 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git commit -m "Refresh climate data for scheduled dashboard updates" \
-            -m "Constraint: Runs unattended from GitHub Actions at 06:00 KST." \
+            -m "Constraint: Runs unattended from GitHub Actions at 06:00 KST and mirrors upstream committed data artifacts." \
             -m "Confidence: medium" \
             -m "Scope-risk: narrow" \
-            -m "Directive: Keep generated data files committed so Vercel can serve the latest bundle after push." \
-            -m "Tested: GitHub Actions completed the data update command before this commit." \
-            -m "Not-tested: Source availability may vary by upstream provider on each run."
+            -m "Directive: Keep this workflow focused on syncing upstream data artifacts; preserve Vercel-specific app files in this fork." \
+            -m "Tested: GitHub Actions completed the upstream sync and ERA5 cache refresh before this commit." \
+            -m "Not-tested: Upstream availability may vary on each scheduled run."
           git pull --rebase
           git push
