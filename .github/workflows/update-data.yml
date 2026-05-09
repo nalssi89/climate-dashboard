@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: update-climate-data
   cancel-in-progress: false
@@ -34,11 +37,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: Configure CDS API credentials
+        env:
+          CDS_API_KEY: ${{ secrets.CDS_KEY }}
+          CDS_API_URL: ${{ secrets.CDS_URL }}
         run: |
+          if [ -z "$CDS_API_KEY" ] || [ -z "$CDS_API_URL" ]; then
+            echo "CDS secrets are not configured; CDS-only data refreshes will be skipped or use cached data."
+            exit 0
+          fi
           mkdir -p ~/.config/cdsapi
           cat > ~/.cdsapirc << EOF
-          url: ${{ secrets.CDS_URL }}
-          key: ${{ secrets.CDS_KEY }}
+          url: $CDS_API_URL
+          key: $CDS_API_KEY
           EOF
 
       - name: Update data and generate images
@@ -49,7 +59,15 @@ jobs:
           python run.py update --force
 
       - name: Update ERA5 spatial data (current month)
+        timeout-minutes: 20
+        env:
+          CDS_API_KEY: ${{ secrets.CDS_KEY }}
+          CDS_API_URL: ${{ secrets.CDS_URL }}
         run: |
+          if [ -z "$CDS_API_KEY" ] || [ -z "$CDS_API_URL" ]; then
+            echo "Skipping ERA5 spatial data update because CDS secrets are not configured."
+            exit 0
+          fi
           python -c "
           from src.precompute_monthly_stats import download_current_month_mtd, precompute_current_month
           download_current_month_mtd(force=True)
