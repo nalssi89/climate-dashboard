@@ -57,17 +57,28 @@ jobs:
           "
         continue-on-error: true   # Don't fail the whole workflow if CDS is slow/unavailable
 
-      - name: Check for changes
+      - name: Stage generated deployment data
         id: git-check
         run: |
-          git diff --quiet || echo "changes=true" >> $GITHUB_OUTPUT
+          git add \
+            assets/images \
+            data/era5_daily_series_2t_global.csv \
+            data/projection_history_*.csv \
+            data/enso_forecast_updates.csv \
+            data/last_enso_forecast_snapshot.csv \
+            ENSO/data/observed \
+            ENSO/data/forecasts
+          if git diff --cached --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit and push changes
         if: steps.git-check.outputs.changes == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A
           git commit -m "Refresh climate data for scheduled dashboard updates" \
             -m "Constraint: Runs unattended from GitHub Actions at 06:00 KST." \
             -m "Confidence: medium" \
